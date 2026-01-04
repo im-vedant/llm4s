@@ -10,6 +10,8 @@ import scala.util.{ Try, Success, Failure }
 import org.llm4s.types.TryOps
 import java.util.UUID
 import scala.collection.mutable
+import pureconfig._
+import pureconfig.ConfigReader
 
 /**
  * MCP Server implementing the 2025-06-18 Streamable HTTP specification.
@@ -28,14 +30,61 @@ import scala.collection.mutable
 object DemonstrationMCPServer {
   private val logger = LoggerFactory.getLogger(getClass)
 
-  def main(args: Array[String]): Unit = {
-    val server = HttpServer.create(new InetSocketAddress(8080), 0)
+  /** Configuration for the server's identity returned in the initialize response. */
+  case class ServerInfoConfig(name: String, version: String)
 
-    server.createContext("/mcp", new MCPHandler())
+  /**
+   * Main configuration for the MCP server.
+   * @param port The port the HTTP server will bind to.
+   * @param path The base path for MCP endpoints (e.g., "/mcp").
+   * @param serverInfo Identity details for the server.
+   */
+  case class McpServerConfig(
+    port: Int,
+    path: String,
+    serverInfo: ServerInfoConfig
+  )
+
+  /** Wrapper for the mcp-server section in application.conf. */
+  case class AppSamplesConfig(mcpServer: McpServerConfig)
+
+  /** Wrapper for the samples section in application.conf. */
+  case class AppSamplesWrapper(samples: AppSamplesConfig)
+
+  /** Root wrapper for the llm4s configuration hierarchy. */
+  case class AppConfig(llm4s: AppSamplesWrapper)
+
+  implicit private val serverInfoReader: ConfigReader[ServerInfoConfig] =
+    ConfigReader.forProduct2("name", "version")(ServerInfoConfig.apply)
+
+  implicit private val mcpServerReader: ConfigReader[McpServerConfig] =
+    ConfigReader.forProduct3("port", "path", "server-info")(McpServerConfig.apply)
+
+  implicit private val appSamplesConfigReader: ConfigReader[AppSamplesConfig] =
+    ConfigReader.forProduct1("mcp-server")(AppSamplesConfig.apply)
+
+  implicit private val appSamplesWrapperReader: ConfigReader[AppSamplesWrapper] =
+    ConfigReader.forProduct1("samples")(AppSamplesWrapper.apply)
+
+  implicit private val appConfigReader: ConfigReader[AppConfig] =
+    ConfigReader.forProduct1("llm4s")(AppConfig.apply)
+
+  def main(args: Array[String]): Unit = {
+    // Load the configuration from application.conf using PureConfig
+    val config = ConfigSource.default.load[AppConfig] match {
+      case Right(conf) => conf.llm4s.samples.mcpServer
+      case Left(failures) =>
+        logger.error(s"Failed to load configuration: ${failures.prettyPrint()}")
+        sys.exit(1)
+    }
+
+    val server = HttpServer.create(new InetSocketAddress(config.port), 0)
+
+    server.createContext(config.path, new MCPHandler(config))
     server.setExecutor(null)
     server.start()
 
-    logger.info("🚀 MCP Server started on http://localhost:8080/mcp")
+    logger.info(s"🚀 MCP Server started on http://localhost:${config.port}${config.path}")
     logger.info("✨ 2025-06-18 Streamable HTTP with session management")
     logger.info("🔧 Available tools: get_weather, currency_convert")
 
@@ -70,7 +119,7 @@ object DemonstrationMCPServer {
     def sessionCount: Int = sessions.size
   }
 
-  class MCPHandler extends HttpHandler {
+  class MCPHandler(config: McpServerConfig) extends HttpHandler {
     override def handle(exchange: HttpExchange): Unit = {
       val method = exchange.getRequestMethod
       logger.debug(s"📥 $method ${exchange.getRequestURI}")
@@ -173,7 +222,7 @@ object DemonstrationMCPServer {
             InitializeResponse(
               protocolVersion = protocolVersion,
               capabilities = MCPCapabilities(tools = Some(Obj())),
-              serverInfo = ServerInfo(name = "Demo MCP Server", version = "2.0.0")
+              serverInfo = ServerInfo(name = config.serverInfo.name, version = config.serverInfo.version)
             )
           )
         )
