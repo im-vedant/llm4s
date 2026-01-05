@@ -13,6 +13,8 @@ import org.llm4s.types.Result
  * 1. Create a reusable translation function with tonal control (Formal/Informal)
  * 2. Dynamically modify system prompts based on user context
  * 3. Handle translation results using type-safe Result patterns
+ *
+ * // Run: sbt "samples/runMain org.llm4s.samples.actions.TranslationExample"
  */
 object TranslationExample {
   val textToTranslate = "Hello, how are you?"
@@ -25,9 +27,12 @@ object TranslationExample {
       |- Sounds natural and idiomatic in the target language
       |
       |Return only the translated text without additional commentary.""".stripMargin
-  enum Tone:
-    case Informal
-    case Formal
+
+  sealed trait Tone
+  object Tone {
+    case object Informal extends Tone
+    case object Formal   extends Tone
+  }
   def main(args: Array[String]): Unit = {
     println("Translation Example")
     println("-------------------------")
@@ -54,10 +59,19 @@ object TranslationExample {
     )
   }
 
+  /**
+   * Translates text to the specified language with tonal control.
+   *
+   * @param text     The text to translate
+   * @param language The target language
+   * @param tone     The formality level (Formal/Informal)
+   * @param client   The LLM client to use
+   * @return Either an error or the translated text
+   */
   def translate(text: String, language: String, tone: Tone)(client: LLMClient): Result[String] = {
     val tonalInstruction = tone match {
-      case Tone.Formal   => "Use formal language (e.g., 'vous' in French, 'Sie' in German)."
-      case Tone.Informal => "Use informal/casual language (e.g., 'tu' in French, 'du' in German)."
+      case Tone.Formal   => "Use formal language (e.g., 'vous' in French, 'Sie' in German, 'usted' in Spanish)."
+      case Tone.Informal => "Use informal/casual language (e.g., 'tu' in French, 'du' in German, 'tú' in Spanish)."
     }
 
     val finalSystemPrompt =
