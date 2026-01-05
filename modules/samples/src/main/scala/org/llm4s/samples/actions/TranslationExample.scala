@@ -51,7 +51,7 @@ object TranslationExample {
 
     result.fold(
       err => println(s"Error: ${err.formatted}"),
-      (informal, formal) => {
+      { case (informal, formal) =>
         println(s"Informal ($language): $informal")
         println(s"Formal   ($language): $formal")
         println("-------------------------")
