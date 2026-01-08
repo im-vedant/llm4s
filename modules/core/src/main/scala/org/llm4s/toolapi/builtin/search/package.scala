@@ -8,7 +8,7 @@ package org.llm4s.toolapi.builtin
  *
  * == Available Tools ==
  *
- * - [[WebSearchTool]]: Search using DuckDuckGo Instant Answer API
+ * - [[DuckDuckGoSearchTool]]: Search using DuckDuckGo Instant Answer API
  *   - Best for definitions, facts, quick lookups
  *   - No API key required
  *   - Returns abstracts, related topics, and infobox data
@@ -19,10 +19,10 @@ package org.llm4s.toolapi.builtin
  * import org.llm4s.toolapi.ToolRegistry
  *
  * // Default search tool
- * val searchTool = WebSearchTool.create()
+ * val searchTool = DuckDuckGoSearchTool.tool
  *
  * // Custom configuration
- * val customSearch = WebSearchTool.create(WebSearchConfig(
+ * val customSearch = DuckDuckGoSearchTool.create(DuckDuckGoSearchConfig(
  *   timeoutMs = 15000,
  *   maxResults = 5
  * ))
@@ -36,6 +36,6 @@ package object search {
    * All search tools with default configuration.
    */
   val allTools: Seq[org.llm4s.toolapi.ToolFunction[_, _]] = Seq(
-    WebSearchTool.tool
+    DuckDuckGoSearchTool.tool
   )
 }

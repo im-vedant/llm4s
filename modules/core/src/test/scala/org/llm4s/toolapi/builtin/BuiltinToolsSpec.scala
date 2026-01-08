@@ -26,7 +26,7 @@ class BuiltinToolsSpec extends AnyFlatSpec with Matchers {
       "calculator",
       "generate_uuid",
       "json_tool",
-      "web_search",
+      "duckduckgo_search",
       "http_request"
     )
   }
@@ -70,7 +70,7 @@ class BuiltinToolsSpec extends AnyFlatSpec with Matchers {
     toolNames should contain("json_tool")
 
     // Network tools
-    toolNames should contain("web_search")
+    toolNames should contain("duckduckgo_search")
     toolNames should contain("http_request")
 
     // File tools
@@ -88,7 +88,7 @@ class BuiltinToolsSpec extends AnyFlatSpec with Matchers {
     val tools = BuiltinTools.custom(includeSearch = true)
 
     tools.size shouldBe 5 // 4 core + search
-    tools.map(_.name) should contain("web_search")
+    tools.map(_.name) should contain("duckduckgo_search")
     tools.map(_.name) should not contain "http_request"
     tools.map(_.name) should not contain "read_file"
   }
@@ -97,7 +97,7 @@ class BuiltinToolsSpec extends AnyFlatSpec with Matchers {
     val tools = BuiltinTools.custom(includeSearch = false)
 
     tools.size shouldBe 4 // Only core
-    tools.map(_.name) should not contain "web_search"
+    tools.map(_.name) should not contain "duckduckgo_search"
   }
 
   it should "include HTTP when configured" in {

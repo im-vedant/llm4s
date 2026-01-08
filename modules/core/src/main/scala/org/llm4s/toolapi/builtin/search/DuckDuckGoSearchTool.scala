@@ -21,9 +21,9 @@ object RelatedTopic {
 }
 
 /**
- * Web search result.
+ * DuckDuckGo search result.
  */
-case class WebSearchResult(
+case class DuckDuckGoSearchResult(
   query: String,
   abstract_ : String,
   abstractSource: String,
@@ -34,18 +34,18 @@ case class WebSearchResult(
   infoboxContent: Option[String]
 )
 
-object WebSearchResult {
-  implicit val webSearchResultRW: ReadWriter[WebSearchResult] = macroRW[WebSearchResult]
+object DuckDuckGoSearchResult {
+  implicit val duckDuckGoSearchResultRW: ReadWriter[DuckDuckGoSearchResult] = macroRW[DuckDuckGoSearchResult]
 }
 
 /**
- * Configuration for web search tool.
+ * Configuration for DuckDuckGo search tool.
  *
  * @param timeoutMs Request timeout in milliseconds.
  * @param maxResults Maximum number of related topics to return.
  * @param safeSearch Whether to enable safe search.
  */
-case class WebSearchConfig(
+case class DuckDuckGoSearchConfig(
   timeoutMs: Int = 10000,
   maxResults: Int = 10,
   safeSearch: Boolean = true
@@ -66,54 +66,56 @@ case class WebSearchConfig(
  * It does NOT provide full web search results (that would require a paid API).
  *
  * @example
- * {{{{
+ * {{{
  * import org.llm4s.toolapi.builtin.search._
  *
- * val searchTool = WebSearchTool.create()
+ * val searchTool = DuckDuckGoSearchTool.create()
  *
  * val tools = new ToolRegistry(Seq(searchTool))
  * agent.run("What is Scala programming language?", tools)
- * }}}}
+ * }}}
  */
-object WebSearchTool {
+object DuckDuckGoSearchTool {
 
   private val DuckDuckGoApiUrl = "https://api.duckduckgo.com/"
 
   private def createSchema = Schema
-    .`object`[Map[String, Any]]("Web search parameters")
+    .`object`[Map[String, Any]]("DuckDuckGo search parameters")
     .withProperty(
       Schema.property(
-        "query",
+        "search_query",
         Schema.string("The search query (best for definitions, facts, quick lookups)")
       )
     )
 
   /**
-   * Create a web search tool with the given configuration.
+   * Create a DuckDuckGo search tool with the given configuration.
    */
-  def create(config: WebSearchConfig = WebSearchConfig()): ToolFunction[Map[String, Any], WebSearchResult] =
-    ToolBuilder[Map[String, Any], WebSearchResult](
-      name = "web_search",
+  def create(
+    config: DuckDuckGoSearchConfig = DuckDuckGoSearchConfig()
+  ): ToolFunction[Map[String, Any], DuckDuckGoSearchResult] =
+    ToolBuilder[Map[String, Any], DuckDuckGoSearchResult](
+      name = "duckduckgo_search",
       description = "Search the web for definitions, facts, and quick answers using DuckDuckGo. " +
         "Best for factual queries and definitions. Does not provide full web search results. " +
         s"Timeout: ${config.timeoutMs}ms.",
       schema = createSchema
     ).withHandler { extractor =>
       for {
-        query  <- extractor.getString("query")
-        result <- search(query, config)
+        searchQuery <- extractor.getString("search_query")
+        result      <- search(searchQuery, config)
       } yield result
     }.build()
 
   /**
-   * Default web search tool with standard configuration.
+   * Default DuckDuckGo search tool with standard configuration.
    */
-  val tool: ToolFunction[Map[String, Any], WebSearchResult] = create()
+  val tool: ToolFunction[Map[String, Any], DuckDuckGoSearchResult] = create()
 
   private def search(
     query: String,
-    config: WebSearchConfig
-  ): Either[String, WebSearchResult] = {
+    config: DuckDuckGoSearchConfig
+  ): Either[String, DuckDuckGoSearchResult] = {
     val encodedQuery = URLEncoder.encode(query, "UTF-8")
     val safeSearch   = if (config.safeSearch) "1" else "-1"
     val url = s"$DuckDuckGoApiUrl?q=$encodedQuery&format=json&no_html=1&skip_disambig=0&t=llm4s&safesearch=$safeSearch"
@@ -124,7 +126,7 @@ object WebSearchTool {
       connection.setRequestMethod("GET")
       connection.setConnectTimeout(config.timeoutMs)
       connection.setReadTimeout(config.timeoutMs)
-      connection.setRequestProperty("User-Agent", "llm4s-web-search/1.0")
+      connection.setRequestProperty("User-Agent", "llm4s-duckduckgo-search/1.0")
 
       val responseCode = connection.getResponseCode
 
@@ -170,7 +172,7 @@ object WebSearchTool {
         }
       }
 
-      WebSearchResult(
+      DuckDuckGoSearchResult(
         query = query,
         abstract_ = json.obj.get("Abstract").map(_.str).getOrElse(""),
         abstractSource = json.obj.get("AbstractSource").map(_.str).getOrElse(""),
@@ -180,6 +182,6 @@ object WebSearchTool {
         relatedTopics = relatedTopics,
         infoboxContent = infobox
       )
-    }.toEither.left.map(e => s"Web search failed: ${e.getMessage}")
+    }.toEither.left.map(e => s"DuckDuckGo search failed: ${e.getMessage}")
   }
 }

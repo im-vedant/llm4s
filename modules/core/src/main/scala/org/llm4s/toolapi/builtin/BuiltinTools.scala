@@ -62,7 +62,7 @@ object BuiltinTools {
    */
   def safe(httpConfig: HttpConfig = HttpConfig.readOnly()): Seq[ToolFunction[_, _]] =
     core ++ Seq(
-      WebSearchTool.tool,
+      DuckDuckGoSearchTool.tool,
       HTTPTool.create(httpConfig)
     )
 
@@ -117,7 +117,7 @@ object BuiltinTools {
     val shellConfig = ShellConfig.development(workingDirectory)
 
     core ++ Seq(
-      WebSearchTool.tool,
+      DuckDuckGoSearchTool.tool,
       HTTPTool.tool,
       ReadFileTool.create(fileConfig),
       ListDirectoryTool.create(fileConfig),
@@ -146,7 +146,7 @@ object BuiltinTools {
     var tools: Seq[ToolFunction[_, _]] = core
 
     if (includeSearch) {
-      tools = tools :+ WebSearchTool.tool
+      tools = tools :+ DuckDuckGoSearchTool.tool
     }
 
     httpConfig.foreach(cfg => tools = tools :+ HTTPTool.create(cfg))
