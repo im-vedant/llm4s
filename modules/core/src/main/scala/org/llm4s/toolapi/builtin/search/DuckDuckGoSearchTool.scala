@@ -1,11 +1,9 @@
 package org.llm4s.toolapi.builtin.search
 
-import org.llm4s.core.safety.UsingOps.using
 import org.llm4s.toolapi._
 import upickle.default._
 
-import java.net.{ HttpURLConnection, URI, URLEncoder }
-import scala.io.Source
+import java.net.URLEncoder
 import scala.util.Try
 
 /**
@@ -116,72 +114,69 @@ object DuckDuckGoSearchTool {
     query: String,
     config: DuckDuckGoSearchConfig
   ): Either[String, DuckDuckGoSearchResult] = {
-    val encodedQuery = URLEncoder.encode(query, "UTF-8")
-    val safeSearch   = if (config.safeSearch) "1" else "-1"
-    val url = s"$DuckDuckGoApiUrl?q=$encodedQuery&format=json&no_html=1&skip_disambig=0&t=llm4s&safesearch=$safeSearch"
+    import sttp.client4._
 
     Try {
-      val connection = URI.create(url).toURL.openConnection().asInstanceOf[HttpURLConnection]
+      val backend = DefaultSyncBackend()
 
-      connection.setRequestMethod("GET")
-      connection.setConnectTimeout(config.timeoutMs)
-      connection.setReadTimeout(config.timeoutMs)
-      connection.setRequestProperty("User-Agent", "llm4s-duckduckgo-search/1.0")
+      val encodedQuery = URLEncoder.encode(query, "UTF-8")
+      val safeSearch   = if (config.safeSearch) "1" else "-1"
+      val url =
+        s"$DuckDuckGoApiUrl?q=$encodedQuery&format=json&no_html=1&skip_disambig=0&t=llm4s&safesearch=$safeSearch"
 
-      val responseCode = connection.getResponseCode
+      val response = basicRequest
+        .get(uri"$url")
+        .header("User-Agent", "llm4s-duckduckgo-search/1.0")
+        .readTimeout(scala.concurrent.duration.Duration(config.timeoutMs, "ms"))
+        .send(backend)
 
-      if (responseCode != 200) {
-        throw new RuntimeException(s"Search failed with status code: $responseCode")
-      }
+      response.body match {
+        case Right(body) =>
+          // Parse the JSON response
+          val json = ujson.read(body)
 
-      val responseBody = using(connection.getInputStream) { is =>
-        using(Source.fromInputStream(is, "UTF-8"))(source => source.mkString)
-      }
-
-      connection.disconnect()
-
-      // Parse the JSON response
-      val json = ujson.read(responseBody)
-
-      val relatedTopics = json.obj
-        .get("RelatedTopics")
-        .map { topics =>
-          topics.arr
-            .take(config.maxResults)
-            .flatMap { topic =>
-              topic.obj.get("Text").map { text =>
-                RelatedTopic(
-                  text = text.str,
-                  url = topic.obj.get("FirstURL").map(_.str)
-                )
-              }
+          val relatedTopics = json.obj
+            .get("RelatedTopics")
+            .map { topics =>
+              topics.arr
+                .take(config.maxResults)
+                .flatMap { topic =>
+                  topic.obj.get("Text").map { text =>
+                    RelatedTopic(
+                      text = text.str,
+                      url = topic.obj.get("FirstURL").map(_.str)
+                    )
+                  }
+                }
+                .toSeq
             }
-            .toSeq
-        }
-        .getOrElse(Seq.empty)
+            .getOrElse(Seq.empty)
 
-      val infobox = json.obj.get("Infobox").flatMap { infobox =>
-        infobox.obj.get("content").map { content =>
-          content.arr
-            .map { item =>
-              val label = item.obj.get("label").map(_.str).getOrElse("")
-              val value = item.obj.get("value").map(_.str).getOrElse("")
-              s"$label: $value"
+          val infobox = json.obj.get("Infobox").flatMap { infobox =>
+            infobox.obj.get("content").map { content =>
+              content.arr
+                .map { item =>
+                  val label = item.obj.get("label").map(_.str).getOrElse("")
+                  val value = item.obj.get("value").map(_.str).getOrElse("")
+                  s"$label: $value"
+                }
+                .mkString("\n")
             }
-            .mkString("\n")
-        }
-      }
+          }
 
-      DuckDuckGoSearchResult(
-        query = query,
-        abstract_ = json.obj.get("Abstract").map(_.str).getOrElse(""),
-        abstractSource = json.obj.get("AbstractSource").map(_.str).getOrElse(""),
-        abstractUrl = json.obj.get("AbstractURL").map(_.str).getOrElse(""),
-        answer = json.obj.get("Answer").map(_.str).getOrElse(""),
-        answerType = json.obj.get("AnswerType").map(_.str).getOrElse(""),
-        relatedTopics = relatedTopics,
-        infoboxContent = infobox
-      )
+          DuckDuckGoSearchResult(
+            query = query,
+            abstract_ = json.obj.get("Abstract").map(_.str).getOrElse(""),
+            abstractSource = json.obj.get("AbstractSource").map(_.str).getOrElse(""),
+            abstractUrl = json.obj.get("AbstractURL").map(_.str).getOrElse(""),
+            answer = json.obj.get("Answer").map(_.str).getOrElse(""),
+            answerType = json.obj.get("AnswerType").map(_.str).getOrElse(""),
+            relatedTopics = relatedTopics,
+            infoboxContent = infobox
+          )
+        case Left(error) =>
+          throw new Exception(s"HTTP request failed: $error")
+      }
     }.toEither.left.map(e => s"DuckDuckGo search failed: ${e.getMessage}")
   }
 }
