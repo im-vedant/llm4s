@@ -7,11 +7,22 @@ import org.llm4s.config.Llm4sConfig
 import java.net.URLEncoder
 import scala.util.Try
 
+sealed trait SafeSearch {
+  def value: String
+}
+
+object SafeSearch {
+  case object Off      extends SafeSearch { val value = "off"      }
+  case object Moderate extends SafeSearch { val value = "moderate" }
+  case object Strict   extends SafeSearch { val value = "strict"   }
+}
+
 case class BraveSearchConfig(
   count: Int = 5,
-  safeSearch: String = "moderate",
+  safeSearch: SafeSearch = SafeSearch.Strict,
   extraParams: Map[String, Any] = Map.empty
 )
+
 case class BraveSearchResult(
   query: String,
   results: List[BraveWebResult]
@@ -88,7 +99,7 @@ object BraveSearchTool {
       val baseParams = Map(
         "q"          -> URLEncoder.encode(query, "UTF-8"),
         "count"      -> config.count.toString,
-        "safesearch" -> config.safeSearch
+        "safesearch" -> config.safeSearch.value
       )
 
       // Combine with extra parameters
