@@ -3,8 +3,7 @@ package org.llm4s.toolapi.builtin
 /**
  * Search tools for web searches and lookups.
  *
- * These tools provide web search capabilities using free APIs
- * that don't require API keys.
+ * These tools provide web search capabilities.
  *
  * == Available Tools ==
  *
@@ -12,6 +11,11 @@ package org.llm4s.toolapi.builtin
  *   - Best for definitions, facts, quick lookups
  *   - No API key required
  *   - Returns abstracts, related topics, and infobox data
+ *
+ * - [[BraveSearchTool]]: Full web search using Brave Search API
+ *   - Best for comprehensive web search results
+ *   - Requires `BRAVE_SEARCH_API_KEY`
+ *   - Returns snippets with title and URL
  *
  * @example
  * {{{
@@ -21,13 +25,10 @@ package org.llm4s.toolapi.builtin
  * // Default search tool
  * val searchTool = DuckDuckGoSearchTool.tool
  *
- * // Custom configuration
- * val customSearch = DuckDuckGoSearchTool.create(DuckDuckGoSearchConfig(
- *   timeoutMs = 15000,
- *   maxResults = 5
- * ))
+ * // Brave search tool 
+ * val braveSearch = BraveSearchTool.tool
  *
- * val tools = new ToolRegistry(Seq(searchTool))
+ * val tools = new ToolRegistry(Seq(searchTool, braveSearch))
  * }}}
  */
 package object search {
@@ -36,6 +37,7 @@ package object search {
    * All search tools with default configuration.
    */
   val allTools: Seq[org.llm4s.toolapi.ToolFunction[_, _]] = Seq(
-    DuckDuckGoSearchTool.tool
+    DuckDuckGoSearchTool.tool,
+    BraveSearchTool.tool
   )
 }

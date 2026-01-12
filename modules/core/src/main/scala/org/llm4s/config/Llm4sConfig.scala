@@ -141,5 +141,8 @@ object Llm4sConfig {
     val fromConf = source.at("file").load[String].toOption.map(_.trim).filter(_.nonEmpty)
     fromConf
   }
+
+  def braveSearchApiKey(): Result[String] =
+    org.llm4s.config.ToolsConfigLoader.loadBraveApiKey(ConfigSource.default)
 }
 // scalafix:on DisableSyntax.NoPureConfigDefault
