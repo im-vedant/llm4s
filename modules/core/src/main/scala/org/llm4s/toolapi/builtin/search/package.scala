@@ -38,6 +38,9 @@ package object search {
    */
   val allTools: Seq[org.llm4s.toolapi.ToolFunction[_, _]] = Seq(
     DuckDuckGoSearchTool.tool,
-    BraveSearchTool.tool
+    BraveSearchTool.braveWebSearchTool,
+    BraveSearchTool.braveImageSearchTool,
+    BraveSearchTool.braveVideoSearchTool,
+    BraveSearchTool.braveNewsSearchTool
   )
 }
