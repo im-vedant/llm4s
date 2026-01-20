@@ -1,8 +1,23 @@
 package org.llm4s.config
 
-import org.llm4s.error.ConfigurationError
 import org.llm4s.types.Result
+import org.llm4s.error.ConfigurationError
 import pureconfig.{ ConfigReader => PureConfigReader, ConfigSource }
+
+/**
+ * Configuration data for Brave Search tool.
+ *
+ * @param apiKey The Brave Search API key
+ * @param apiUrl The base URL for the Brave Search API (default: https://api.search.brave.com/res/v1)
+ * @param count The number of search results to return per request
+ * @param safeSearch The safe search level (off, moderate, or strict)
+ */
+final case class BraveTool(
+  apiKey: String,
+  apiUrl: String,
+  count: Int,
+  safeSearch: String
+)
 
 /**
  * Internal PureConfig-based loader for tools configuration.
@@ -10,56 +25,36 @@ import pureconfig.{ ConfigReader => PureConfigReader, ConfigSource }
  * This loader follows the same pattern as ProviderConfigLoader and EmbeddingsConfigLoader
  * to provide a consistent, scalable approach for loading tool API keys and configurations.
  *
- * External code should use Llm4sConfig.braveSearchApiKey() rather than this object directly.
+ * External code should use Llm4sConfig.loadBraveSearchTool() rather than this object directly.
  */
 private[config] object ToolsConfigLoader {
 
-  final private case class BraveSection(
-    apiKey: Option[String]
-  )
-
-  final private case class ToolsRoot(
-    brave: Option[BraveSection]
-  )
-
-  // ---- PureConfig readers for internal shapes ----
-
-  implicit private val braveSectionReader: PureConfigReader[BraveSection] =
-    PureConfigReader.forProduct1("apiKey")(BraveSection.apply)
-
-  implicit private val toolsRootReader: PureConfigReader[ToolsRoot] =
-    PureConfigReader.forProduct1("brave")(ToolsRoot.apply)
+  implicit private val braveSectionReader: PureConfigReader[BraveTool] =
+    PureConfigReader.forProduct4("apiKey", "apiUrl", "count", "safeSearch")(BraveTool.apply)
 
   // ---- Public API used by Llm4sConfig ----
 
   /**
-   * Load Brave Search API key from configuration.
+   * Load Brave Search tool configuration from the given configuration source.
    *
-   * Checks for the API key in the following order:
-   * 1. Environment variable: BRAVE_SEARCH_API_KEY
-   * 2. System properties
-   * 3. application.conf: llm4s.tools.brave.apiKey
-   * 4. reference.conf: llm4s.tools.brave.apiKey
+   * Loads the complete BraveTool configuration including:
+   * - apiKey: The Brave Search API key
+   * - apiUrl: The base URL for the Brave Search API
+   * - count: The number of search results to return
+   * - safeSearch: The safe search level setting
    *
-   * @param source The configuration source to load from
-   * @return Right(apiKey) if found and non-empty, Left(ConfigurationError) otherwise
+   * Configuration is expected at path: llm4s.tools.brave
+   *
+   * @param source The configuration source to load from (typically ConfigSource.default)
+   * @return Right(BraveTool) if configuration is valid, Left(ConfigurationError) otherwise
    */
-  def loadBraveApiKey(source: ConfigSource): Result[String] = {
-    val rootEither = source.at("llm4s.tools").load[ToolsRoot]
+  def loadBraveSearchTool(source: ConfigSource): Result[BraveTool] = {
+    val result: Result[BraveTool] = source.at("llm4s.tools.brave").load[BraveTool].left.map { failures =>
+      val msg = failures.toList.map(_.description).mkString("; ")
+      ConfigurationError(s"Failed to load llm4s tools config via PureConfig: $msg")
+    }
+    result
 
-    rootEither.left
-      .map { failures =>
-        val msg = failures.toList.map(_.description).mkString("; ")
-        ConfigurationError(s"Failed to load llm4s tools config via PureConfig: $msg")
-      }
-      .flatMap { root =>
-        val apiKeyOpt = root.brave.flatMap(_.apiKey).map(_.trim).filter(_.nonEmpty)
-        apiKeyOpt.toRight(
-          ConfigurationError(
-            "Missing Brave Search API key (llm4s.tools.brave.apiKey / BRAVE_SEARCH_API_KEY)"
-          )
-        )
-      }
   }
 
 }

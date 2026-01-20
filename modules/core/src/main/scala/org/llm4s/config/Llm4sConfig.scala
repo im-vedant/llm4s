@@ -142,7 +142,7 @@ object Llm4sConfig {
     fromConf
   }
 
-  def braveSearchApiKey(): Result[String] =
-    org.llm4s.config.ToolsConfigLoader.loadBraveApiKey(ConfigSource.default)
+  def loadBraveSearchTool(): Result[BraveTool] =
+    org.llm4s.config.ToolsConfigLoader.loadBraveSearchTool(ConfigSource.default)
 }
 // scalafix:on DisableSyntax.NoPureConfigDefault
