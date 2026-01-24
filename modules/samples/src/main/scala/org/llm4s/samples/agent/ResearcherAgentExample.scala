@@ -2,9 +2,10 @@ package org.llm4s.samples.agent
 
 import org.llm4s.agent.Agent
 import org.llm4s.config.Llm4sConfig
+import com.typesafe.config.ConfigFactory
 import org.llm4s.llmconnect.LLMConnect
 import org.llm4s.toolapi.ToolRegistry
-import org.llm4s.toolapi.builtin.search.{BraveSearchTool, SafeSearch}
+import org.llm4s.toolapi.builtin.search.{ BraveSearchTool, SafeSearch }
 import org.llm4s.toolapi.builtin.search.BraveSearchCategory
 import org.llm4s.toolapi.builtin.search.BraveSearchConfig
 import org.slf4j.LoggerFactory
@@ -27,10 +28,12 @@ import org.slf4j.LoggerFactory
  * sbt "samples/runMain org.llm4s.samples.agent.ResearcherAgentExample"
  * }}}
  */
+
 object ResearcherAgentExample {
   private val logger = LoggerFactory.getLogger(getClass)
 
-  private val RESEARCH_TOPIC = "Climate change impacts on Arctic wildlife"
+  private val config         = ConfigFactory.load()
+  private val RESEARCH_TOPIC = config.getString("llm4s.samples.agent.research-topic")
 
   def main(args: Array[String]): Unit = {
     logger.info("🔬 === Researcher Agent Example ===\n")
@@ -48,7 +51,6 @@ object ResearcherAgentExample {
         logger.error("Failed to create LLM client: {}", error)
         logger.error("Make sure LLM_MODEL and appropriate API key are set")
         logger.error("Example: export LLM_MODEL=openai/gpt-4o")
-        return
 
       case Right(client) =>
         logger.info("✓ LLM client created successfully\n")
@@ -82,6 +84,9 @@ object ResearcherAgentExample {
   /**
    * Executes the multi-phase research workflow with the agent.
    */
+
+  // research topic could be moved to config file
+
   private def executeResearch(agent: Agent, registry: ToolRegistry): Unit = {
     val systemPrompt = createResearchSystemPrompt()
 
@@ -109,9 +114,6 @@ object ResearcherAgentExample {
         logger.error("Research failed: {}", error.formatted)
 
       case Right(state) =>
-        // Display the research process
-        // displayResearchProcess(state)
-
         // Extract and display the final research summary
         val finalResponse = state.conversation.messages
           .filter(_.role == org.llm4s.llmconnect.model.MessageRole.Assistant)
@@ -119,10 +121,10 @@ object ResearcherAgentExample {
           .map(_.content)
           .getOrElse("No research summary available")
 
-        logger.info("\n" + "=" * 70)
-        logger.info("📋 RESEARCH SUMMARY")
-        logger.info("=" * 70)
-        logger.info("\n{}\n", finalResponse)
+        println("\n" + "=" * 70)
+        println("📋 RESEARCH SUMMARY")
+        println("=" * 70)
+        println(s"\n$finalResponse\n")
     }
   }
 

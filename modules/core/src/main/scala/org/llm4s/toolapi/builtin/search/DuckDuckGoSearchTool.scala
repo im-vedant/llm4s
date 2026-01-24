@@ -109,7 +109,8 @@ object DuckDuckGoSearchTool {
    * Default DuckDuckGo search tool with standard configuration.
    */
   val tool: ToolFunction[Map[String, Any], DuckDuckGoSearchResult] = create()
-
+  val SAFE_SEARCH = "1"
+  val UNSAFE_SEARCH = "-1"
   private def search(
     query: String,
     config: DuckDuckGoSearchConfig
@@ -120,7 +121,7 @@ object DuckDuckGoSearchTool {
       val backend = DefaultSyncBackend()
 
       val encodedQuery = URLEncoder.encode(query, "UTF-8")
-      val safeSearch   = if (config.safeSearch) "1" else "-1"
+      val safeSearch   = if (config.safeSearch) SAFE_SEARCH else UNSAFE_SEARCH
       val url =
         s"$DuckDuckGoApiUrl?q=$encodedQuery&format=json&no_html=1&skip_disambig=0&t=llm4s&safesearch=$safeSearch"
 

@@ -48,13 +48,9 @@ private[config] object ToolsConfigLoader {
    * @param source The configuration source to load from (typically ConfigSource.default)
    * @return Right(BraveTool) if configuration is valid, Left(ConfigurationError) otherwise
    */
-  def loadBraveSearchTool(source: ConfigSource): Result[BraveTool] = {
-    val result: Result[BraveTool] = source.at("llm4s.tools.brave").load[BraveTool].left.map { failures =>
+  def loadBraveSearchTool(source: ConfigSource): Result[BraveTool] =
+    source.at("llm4s.tools.brave").load[BraveTool].left.map { failures =>
       val msg = failures.toList.map(_.description).mkString("; ")
       ConfigurationError(s"Failed to load llm4s tools config via PureConfig: $msg")
     }
-    result
-
-  }
-
 }
