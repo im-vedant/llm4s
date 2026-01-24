@@ -25,7 +25,7 @@ package org.llm4s.toolapi.builtin
  * // Default search tool
  * val searchTool = DuckDuckGoSearchTool.tool
  *
- * // Brave search tool 
+ * // Brave search tool
  * val braveSearch = BraveSearchTool.tool
  *
  * val tools = new ToolRegistry(Seq(searchTool, braveSearch))

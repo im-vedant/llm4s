@@ -109,8 +109,8 @@ object DuckDuckGoSearchTool {
    * Default DuckDuckGo search tool with standard configuration.
    */
   val tool: ToolFunction[Map[String, Any], DuckDuckGoSearchResult] = create()
-  val SAFE_SEARCH = "1"
-  val UNSAFE_SEARCH = "-1"
+  val SAFE_SEARCH                                                  = "1"
+  val UNSAFE_SEARCH                                                = "-1"
   private def search(
     query: String,
     config: DuckDuckGoSearchConfig
