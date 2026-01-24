@@ -35,6 +35,10 @@ The `VectorStore` trait provides a backend-agnostic interface for storing and se
 - **pgvector** - PostgreSQL with pgvector extension (production-ready)
 - **Qdrant** - Cloud-native vector database via REST API
 
+**Keyword Backends (for hybrid search):**
+- **SQLite FTS5** - File-based or in-memory BM25 search (default)
+- **PostgreSQL** - Native full-text search with tsvector/tsquery (production-ready)
+
 **Planned Backends:**
 - Milvus
 - Pinecone
@@ -490,6 +494,112 @@ val config = HybridSearcher.Config()
 val configSearcher = HybridSearcher(config).getOrElse(???)
 ```
 
+### PostgreSQL Native Hybrid Search
+
+For production deployments, you can run fully PostgreSQL-based hybrid search using pgvector for vector similarity and PostgreSQL native full-text search (tsvector/tsquery) for BM25-like keyword matching. This eliminates the need for a separate SQLite database.
+
+**Requirements:** PostgreSQL 16+ with pgvector extension (PostgreSQL 18+ recommended for best performance)
+
+```scala
+import org.llm4s.vectorstore._
+
+// Create fully PostgreSQL-based hybrid searcher with shared connection pool
+val searcher = HybridSearcher.pgvectorShared(
+  connectionString = "jdbc:postgresql://localhost:5432/mydb",
+  user = "postgres",
+  password = "secret",
+  vectorTableName = "vectors",
+  keywordTableName = "documents"
+).getOrElse(???)
+
+// Index documents (both vector and keyword stores share the same PostgreSQL database)
+val embedding = Array(0.1f, 0.2f, 0.3f)
+searcher.vectorStore.upsert(VectorRecord("doc-1", embedding, Some("Scala programming")))
+searcher.keywordIndex.index(KeywordDocument("doc-1", "Scala programming"))
+
+// Search using both vector similarity and PostgreSQL full-text search
+val results = searcher.search(embedding, "Scala", topK = 10)
+
+searcher.close()
+```
+
+**PostgreSQL Keyword Index:**
+
+The `PgKeywordIndex` uses PostgreSQL native full-text search capabilities:
+- **tsvector** for tokenized document representation
+- **ts_rank_cd** for BM25-like relevance scoring
+- **websearch_to_tsquery** for natural search syntax (supports `"exact phrases"`, `OR`, `-exclude`)
+- **ts_headline** for highlighted snippets
+- **GIN indexes** for fast full-text and metadata queries
+
+```scala
+import org.llm4s.vectorstore._
+
+// Create standalone PostgreSQL keyword index
+val keywordIndex = KeywordIndex.postgres(
+  connectionString = "jdbc:postgresql://localhost:5432/mydb",
+  user = "postgres",
+  password = "secret",
+  tableName = "documents"  // Creates documents_keyword table
+).getOrElse(???)
+
+// Index with metadata
+keywordIndex.index(KeywordDocument(
+  id = "doc-1",
+  content = "PostgreSQL provides powerful full-text search",
+  metadata = Map("lang" -> "en", "type" -> "tutorial")
+))
+
+// Search with highlights
+val results = keywordIndex.searchWithHighlights("full-text search", topK = 5)
+results.foreach { r =>
+  println(s"${r.id}: ${r.score}")
+  r.highlights.foreach(h => println(s"  ${h}"))  // Contains <b>highlighted</b> terms
+}
+
+// Filter by metadata
+val filtered = keywordIndex.search(
+  "PostgreSQL",
+  topK = 10,
+  filter = Some(MetadataFilter.Equals("lang", "en"))
+)
+
+keywordIndex.close()
+```
+
+**RAG Configuration:**
+
+Use `withPgHybrid()` to configure fully PostgreSQL-based hybrid search in the RAG pipeline:
+
+```scala
+import org.llm4s.rag._
+
+val config = RAGConfig()
+  .withEmbeddings(EmbeddingProvider.OpenAI)
+  .withPgHybrid(
+    connectionString = "jdbc:postgresql://localhost:5432/mydb",
+    user = "postgres",
+    password = "secret",
+    vectorTableName = "vectors",
+    keywordTableName = "documents"
+  )
+  .withRRF(60)  // Reciprocal Rank Fusion
+
+val rag = RAG.build(config, resolveProvider).getOrElse(???)
+
+// Documents are stored in PostgreSQL for both vector and keyword search
+rag.ingestText("PostgreSQL hybrid search combines vector and full-text.", "doc-1")
+
+val results = rag.query("database search")
+```
+
+**Benefits of PostgreSQL Native Hybrid:**
+- Single database for all RAG storage (vectors, keywords, metadata)
+- Shared connection pool for efficiency
+- Native PostgreSQL transactions and ACID guarantees
+- Simplified deployment and backup strategy
+- Full-text search with stemming, stop words, and language support
+
 ---
 
 ## Reranking
@@ -887,8 +997,11 @@ docker run -p 6333:6333 qdrant/qdrant
 | Development/testing | SQLite (in-memory) |
 | Single-machine production | SQLite (file-based) |
 | Existing PostgreSQL | pgvector |
+| Full PostgreSQL hybrid RAG | pgvector + PgKeywordIndex |
 | High-scale production | Qdrant |
 | Managed service | Qdrant Cloud |
+
+**Note:** For hybrid search with PostgreSQL, use `HybridSearcher.pgvectorShared()` or `RAGConfig.withPgHybrid()` to run both vector and keyword search against a single PostgreSQL database. This provides simplified operations, shared connection pooling, and ACID guarantees.
 
 ---
 
@@ -967,4 +1080,4 @@ sbt "samples/runMain org.llm4s.samples.rag.BenchmarkExample --suite chunking"
 - **[RAG Evaluation Guide](rag-evaluation.md)** - Measure and improve RAG quality
 - **[Embeddings Configuration](../getting-started/configuration#embeddings-configuration)** - Configure embedding providers
 - **[Examples Gallery](/examples/#embeddings-examples)** - See RAG examples in action
-- **[RAG in a Box Roadmap](../roadmap/)** - Upcoming vector store backends
+- **[RAG in a Box](https://github.com/llm4s/rag_in_a_box)** - Production-ready RAG server with REST API, admin UI, and deployment options

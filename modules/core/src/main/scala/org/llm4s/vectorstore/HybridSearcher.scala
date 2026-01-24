@@ -1,7 +1,11 @@
 package org.llm4s.vectorstore
 
+import com.zaxxer.hikari.{ HikariConfig, HikariDataSource }
+import org.llm4s.error.ProcessingError
 import org.llm4s.reranker.{ RerankRequest, Reranker }
 import org.llm4s.types.Result
+
+import scala.util.Try
 
 /**
  * Result from hybrid search combining vector and keyword results.
@@ -401,6 +405,77 @@ object HybridSearcher {
       vectorStore  <- VectorStoreFactory.sqlite(vectorDbPath)
       keywordIndex <- SQLiteKeywordIndex(keywordDbPath)
     } yield new HybridSearcher(vectorStore, keywordIndex, FusionStrategy.default)
+
+  /**
+   * Create a hybrid searcher with PostgreSQL backends for both vector and keyword search.
+   *
+   * This enables fully PostgreSQL-based hybrid RAG using:
+   * - pgvector extension for vector similarity search
+   * - PostgreSQL native full-text search (tsvector/tsquery) for keyword search
+   *
+   * Both stores share a connection pool for efficiency.
+   *
+   * Requires PostgreSQL 16+ with pgvector extension installed.
+   * Recommended: PostgreSQL 18+ for best performance.
+   *
+   * @param connectionString JDBC connection string (e.g., "jdbc:postgresql://localhost:5432/mydb")
+   * @param user Database user
+   * @param password Database password
+   * @param vectorTableName Table name for vectors (default: "vectors")
+   * @param keywordTableName Base table name for keywords (creates {tableName}_keyword table, default: "documents")
+   * @param defaultStrategy Default fusion strategy (default: RRF with k=60)
+   * @return Hybrid searcher or error
+   */
+  def pgvectorShared(
+    connectionString: String,
+    user: String = "postgres",
+    password: String = "",
+    vectorTableName: String = "vectors",
+    keywordTableName: String = "documents",
+    defaultStrategy: FusionStrategy = FusionStrategy.default
+  ): Result[HybridSearcher] =
+    Try {
+      // Create shared HikariDataSource
+      val hikariConfig = new HikariConfig()
+      hikariConfig.setJdbcUrl(connectionString)
+      hikariConfig.setUsername(user)
+      hikariConfig.setPassword(password)
+      hikariConfig.setMaximumPoolSize(20) // Larger pool for shared usage
+      hikariConfig.setMinimumIdle(2)
+      hikariConfig.setConnectionTimeout(30000)
+      hikariConfig.setIdleTimeout(600000)
+      hikariConfig.setMaxLifetime(1800000)
+
+      new HikariDataSource(hikariConfig)
+    }.toEither.left
+      .map(e => ProcessingError("hybrid-searcher", s"Failed to create connection pool: ${e.getMessage}"))
+      .flatMap { dataSource =>
+        for {
+          vectorStore  <- PgVectorStore(dataSource, vectorTableName)
+          keywordIndex <- PgKeywordIndex(dataSource, keywordTableName)
+        } yield new HybridSearcher(vectorStore, keywordIndex, defaultStrategy)
+      }
+
+  /**
+   * Create a hybrid searcher with PostgreSQL backends using separate connection pools.
+   *
+   * Use this when you need independent pool management for vector and keyword stores.
+   * For most use cases, prefer `pgvectorShared` which shares a single pool.
+   *
+   * @param vectorConfig Configuration for PgVectorStore
+   * @param keywordConfig Configuration for PgKeywordIndex
+   * @param defaultStrategy Default fusion strategy
+   * @return Hybrid searcher or error
+   */
+  def pgvector(
+    vectorConfig: PgVectorStore.Config,
+    keywordConfig: PgKeywordIndex.Config,
+    defaultStrategy: FusionStrategy = FusionStrategy.default
+  ): Result[HybridSearcher] =
+    for {
+      vectorStore  <- PgVectorStore(vectorConfig)
+      keywordIndex <- PgKeywordIndex(keywordConfig)
+    } yield new HybridSearcher(vectorStore, keywordIndex, defaultStrategy)
 
   /**
    * Configuration for hybrid searcher.

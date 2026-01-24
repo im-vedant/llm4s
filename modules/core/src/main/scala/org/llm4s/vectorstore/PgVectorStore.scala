@@ -22,15 +22,17 @@ import com.zaxxer.hikari.{ HikariConfig, HikariDataSource }
  * - Scalable to millions of vectors
  *
  * Requirements:
- * - PostgreSQL 12+ with pgvector extension
+ * - PostgreSQL 16+ with pgvector extension (18+ recommended)
  * - Run: CREATE EXTENSION IF NOT EXISTS vector;
  *
  * @param dataSource HikariCP connection pool
  * @param tableName  Name of the vectors table
+ * @param ownsDataSource Whether to close dataSource on close() (default: true)
  */
 final class PgVectorStore private (
   private val dataSource: HikariDataSource,
-  val tableName: String
+  val tableName: String,
+  private val ownsDataSource: Boolean = true
 ) extends VectorStore {
 
   // Initialize schema on creation
@@ -385,7 +387,7 @@ final class PgVectorStore private (
     }.toEither.left.map(e => ProcessingError("pgvector-store", s"Failed to get stats: ${e.getMessage}"))
 
   override def close(): Unit =
-    if (!dataSource.isClosed) {
+    if (ownsDataSource && !dataSource.isClosed) {
       dataSource.close()
     }
 
@@ -568,4 +570,22 @@ object PgVectorStore {
    */
   def local(tableName: String = "vectors"): Result[PgVectorStore] =
     apply(Config(tableName = tableName))
+
+  /**
+   * Create a PgVectorStore with an existing HikariDataSource.
+   *
+   * Useful for sharing a connection pool with other PostgreSQL stores
+   * (e.g., PgKeywordIndex for hybrid search).
+   *
+   * Note: The provided dataSource will NOT be closed when the store is closed.
+   * The caller is responsible for managing the dataSource lifecycle.
+   *
+   * @param dataSource Existing HikariDataSource
+   * @param tableName Table name for vectors
+   * @return The vector store or error
+   */
+  def apply(dataSource: HikariDataSource, tableName: String): Result[PgVectorStore] =
+    Try {
+      new PgVectorStore(dataSource, tableName, ownsDataSource = false)
+    }.toEither.left.map(e => ProcessingError("pgvector-store", s"Failed to create store: ${e.getMessage}"))
 }

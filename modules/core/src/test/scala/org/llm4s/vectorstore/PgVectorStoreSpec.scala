@@ -249,10 +249,18 @@ class PgVectorStoreSpec extends AnyWordSpec with Matchers with BeforeAndAfterEac
   "PgVectorStore factory" should {
 
     "create store from config" in skipIfNoPg {
+      // Parse connection details from JDBC URL
+      // Format: jdbc:postgresql://host:port/database
+      val urlPattern = """jdbc:postgresql://([^:]+):(\d+)/(.+)""".r
+      val (host, port, database) = testUrl.get match {
+        case urlPattern(h, p, d) => (h, p.toInt, d)
+        case _                   => ("localhost", 5432, "postgres")
+      }
+
       val config = PgVectorStore.Config(
-        host = "localhost",
-        port = 5432,
-        database = "postgres",
+        host = host,
+        port = port,
+        database = database,
         user = sys.env.getOrElse("PGVECTOR_TEST_USER", "postgres"),
         password = sys.env.getOrElse("PGVECTOR_TEST_PASSWORD", ""),
         tableName = s"test_factory_${System.currentTimeMillis()}"

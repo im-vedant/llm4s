@@ -45,8 +45,8 @@ inThisBuild(
           "0.0.0-UNKNOWN"
       }
     },
-    ThisBuild / coverageMinimumStmtTotal := 80,
-    ThisBuild / coverageFailOnMinimum    := false,
+    ThisBuild / coverageMinimumStmtTotal := 54,
+    ThisBuild / coverageFailOnMinimum    := true,
     ThisBuild / coverageHighlighting     := true,
     ThisBuild / coverageExcludedPackages := Seq(
       "org\\.llm4s\\.runner\\..*",
@@ -124,10 +124,13 @@ lazy val commonSettings = Seq(
 // ---- projects ----
 lazy val llm4s = (project in file("."))
   .aggregate(core, samples, workspaceShared, workspaceRunner, workspaceClient, workspaceSamples)
+  .settings(
+    publish / skip := true
+  )
 
 lazy val core = (project in file("modules/core"))
   .settings(
-    name := "core",
+    name := "llm4s-core",
     commonSettings,
     Test / fork := true,
     Compile / mainClass := None,
@@ -153,7 +156,9 @@ lazy val core = (project in file("modules/core"))
       Deps.vosk,
       Deps.postgres,
       Deps.config,
-      Deps.hikariCP
+      Deps.hikariCP,
+      Deps.awsS3,
+      Deps.awsSts
     )
   )
 
@@ -168,7 +173,7 @@ lazy val workspaceShared = (project in file("modules/workspace/workspaceShared")
 lazy val workspaceClient = (project in file("modules/workspace/workspaceClient"))
   .dependsOn(workspaceShared, core)
   .settings(
-    name := "workspaceShared",
+    name := "workspaceClient",
     commonSettings,
     Compile / discoveredMainClasses := Seq.empty,
     coverageEnabled := false,

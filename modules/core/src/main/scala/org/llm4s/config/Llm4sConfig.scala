@@ -1,4 +1,3 @@
-// scalafix:off DisableSyntax.NoPureConfigDefault
 package org.llm4s.config
 
 import org.llm4s.llmconnect.config._
@@ -9,6 +8,9 @@ object Llm4sConfig {
 
   def provider(): Result[ProviderConfig] =
     org.llm4s.config.ProviderConfigLoader.load(ConfigSource.default)
+
+  def pgSearchIndex(): Result[org.llm4s.rag.permissions.SearchIndex.PgConfig] =
+    org.llm4s.config.PgSearchIndexConfigLoader.load(ConfigSource.default)
 
   final private case class LangfuseSection(
     url: Option[String],
@@ -145,4 +147,3 @@ object Llm4sConfig {
   def loadBraveSearchTool(): Result[BraveTool] =
     org.llm4s.config.ToolsConfigLoader.loadBraveSearchTool(ConfigSource.default)
 }
-// scalafix:on DisableSyntax.NoPureConfigDefault

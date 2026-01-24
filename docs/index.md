@@ -64,7 +64,7 @@ Real-time token streaming with backpressure handling and error recovery.
 [View examples →](/examples/#streaming)
 
 #### 🔍 RAG & Embeddings
-Complete RAG pipeline: vector storage (SQLite, pgvector, Qdrant), BM25 hybrid search, Cohere cross-encoder reranking, and sentence-aware document chunking.
+Complete RAG pipeline: vector storage (SQLite, pgvector, Qdrant), hybrid search with BM25 keyword matching (SQLite FTS5 or PostgreSQL native), Cohere cross-encoder reranking, and sentence-aware document chunking. For production deployment, see [RAG in a Box](https://github.com/llm4s/rag_in_a_box).
 [Vector stores →](/guide/vector-store) | [Examples →](/examples/#embeddings-examples)
 
 #### 🖼️ Multimodal Support
@@ -87,23 +87,23 @@ Define tools with automatic schema generation and type-safe execution. Supports 
 
 #### 🤖 Agent Framework
 Build sophisticated single and multi-agent workflows with built-in tool calling, conversation management, and state persistence.
-[Explore agents →](/examples/#agent-examples)
+[Explore agents →](/guide/agents/)
 
 #### 💬 Multi-Turn Conversations
 Functional, immutable conversation management with automatic context window pruning and conversation persistence.
-[View patterns →](/examples/#context-management-examples)
+[View patterns →](/guide/agents/#multi-turn-conversations)
 
 #### 🛡️ Guardrails & Validation
 Declarative input/output validation framework for production safety. Built-in guardrails for length checks, profanity filtering, JSON validation, tone validation, and LLM-as-Judge.
-[Learn more →](/examples/#guardrails-examples)
+[Learn more →](/guide/agents/guardrails)
 
 #### 🔄 Agent Handoffs
 LLM-driven agent-to-agent delegation for specialist routing. Simple API for handing off queries to domain experts with automatic context preservation.
-[See examples →](/examples/#handoff-examples)
+[See examples →](/guide/agents/handoffs)
 
 #### 🧠 Memory System
 Short-term and long-term memory with entity tracking. In-memory, SQLite, and vector store backends for semantic search across conversations.
-[Explore memory →](/examples/#memory-examples)
+[Explore memory →](/guide/agents/memory)
 
 #### 💭 Reasoning Modes
 Extended thinking support for OpenAI o1/o3 and Anthropic Claude. Configure reasoning effort levels and access thinking content.
@@ -222,14 +222,20 @@ Explore **69 working examples** covering all features:
 
 <div class="grid">
   <div class="grid-item">
+    <h3>🤖 Agent Framework</h3>
+    <p>Tools, guardrails, memory, handoffs</p>
+    <a href="/guide/agents/">Learn agents →</a>
+  </div>
+
+  <div class="grid-item">
     <h3>📖 User Guide</h3>
-    <p>Guides and tutorials</p>
-    <a href="/guide/">Start learning →</a>
+    <p>RAG, vector stores, multimodal</p>
+    <a href="/guide/">Browse guides →</a>
   </div>
 
   <div class="grid-item">
     <h3>💻 Examples</h3>
-    <p>69 working code examples</p>
+    <p>70 working code examples</p>
     <a href="/examples/">Browse examples →</a>
   </div>
 

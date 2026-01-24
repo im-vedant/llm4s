@@ -6,6 +6,7 @@ import org.llm4s.llmconnect.{ EmbeddingClient, LLMClient }
 import org.llm4s.llmconnect.config.{ EmbeddingModelConfig, EmbeddingProviderConfig }
 import org.llm4s.llmconnect.extractors.UniversalExtractor
 import org.llm4s.llmconnect.model._
+import org.llm4s.rag.extract.DefaultDocumentExtractor
 import org.llm4s.rag.loader._
 import org.llm4s.rag.permissions._
 import org.llm4s.reranker.{ RerankProviderConfig, Reranker, RerankerFactory }
@@ -133,6 +134,67 @@ final class RAG private (
       DocumentChunk(content, idx)
     }
     indexChunks(documentId, docChunks, metadata)
+  }
+
+  // ========== Byte-Based Ingestion API ==========
+
+  /**
+   * Ingest a document from raw bytes.
+   *
+   * This enables source-agnostic document ingestion - the same extraction
+   * logic works for documents from S3, HTTP responses, databases, etc.
+   *
+   * Supported formats: PDF, DOCX, plain text, and anything Apache Tika can handle.
+   *
+   * @param content Raw document bytes
+   * @param filename Filename for format detection (e.g., "report.pdf")
+   * @param documentId Unique identifier for this document
+   * @param metadata Additional metadata
+   * @return Number of chunks created
+   */
+  def ingestBytes(
+    content: Array[Byte],
+    filename: String,
+    documentId: String,
+    metadata: Map[String, String] = Map.empty
+  ): Result[Int] =
+    DefaultDocumentExtractor.extract(content, filename).flatMap { extracted =>
+      val enrichedMetadata = metadata ++ extracted.metadata + ("format" -> extracted.format.name)
+      ingestText(extracted.text, documentId, enrichedMetadata)
+    }
+
+  /**
+   * Ingest multiple documents from raw bytes.
+   *
+   * @param documents Iterator of (content, filename, documentId, metadata) tuples
+   * @return Loading statistics with success/failure counts
+   */
+  def ingestBytesMultiple(
+    documents: Iterator[(Array[Byte], String, String, Map[String, String])]
+  ): Result[LoadStats] = {
+    var successful = 0
+    var failed     = 0
+    val errors     = scala.collection.mutable.ListBuffer[(String, org.llm4s.error.LLMError)]()
+
+    documents.foreach { case (content, filename, docId, metadata) =>
+      ingestBytes(content, filename, docId, metadata) match {
+        case Right(_) =>
+          successful += 1
+        case Left(err) =>
+          failed += 1
+          errors += ((docId, err))
+      }
+    }
+
+    Right(
+      LoadStats(
+        totalAttempted = successful + failed,
+        successful = successful,
+        failed = failed,
+        skipped = 0,
+        errors = errors.toSeq
+      )
+    )
   }
 
   // ========== Document Loader API ==========
@@ -1095,17 +1157,31 @@ object RAG {
   private def createHybridSearcher(config: RAGConfig): Result[HybridSearcher] =
     config.pgVectorConnectionString match {
       case Some(connStr) =>
-        // Use pgvector for vector storage with SQLite for keyword index
-        val user      = config.pgVectorUser.getOrElse("postgres")
-        val password  = config.pgVectorPassword.getOrElse("")
-        val tableName = config.pgVectorTableName.getOrElse("vectors")
-        for {
-          vectorStore <- PgVectorStore(connStr, user, password, tableName)
-          keywordIndex <- config.keywordIndexPath match {
-            case Some(path) => SQLiteKeywordIndex(path)
-            case None       => KeywordIndex.inMemory()
-          }
-        } yield HybridSearcher(vectorStore, keywordIndex)
+        val user        = config.pgVectorUser.getOrElse("postgres")
+        val password    = config.pgVectorPassword.getOrElse("")
+        val vectorTable = config.pgVectorTableName.getOrElse("vectors")
+
+        config.pgKeywordTableName match {
+          case Some(keywordTable) =>
+            // Full PostgreSQL hybrid: pgvector + PostgreSQL FTS
+            HybridSearcher.pgvectorShared(
+              connStr,
+              user,
+              password,
+              vectorTable,
+              keywordTable,
+              config.fusionStrategy
+            )
+          case None =>
+            // pgvector + SQLite keyword index (existing behavior)
+            for {
+              vectorStore <- PgVectorStore(connStr, user, password, vectorTable)
+              keywordIndex <- config.keywordIndexPath match {
+                case Some(path) => SQLiteKeywordIndex(path)
+                case None       => KeywordIndex.inMemory()
+              }
+            } yield HybridSearcher(vectorStore, keywordIndex, config.fusionStrategy)
+        }
       case None =>
         (config.vectorStorePath, config.keywordIndexPath) match {
           case (Some(vectorPath), Some(keywordPath)) =>

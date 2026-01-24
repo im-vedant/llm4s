@@ -55,6 +55,8 @@ final case class RAGConfig(
   pgVectorUser: Option[String] = None,
   pgVectorPassword: Option[String] = None,
   pgVectorTableName: Option[String] = None,
+  // Pg Keyword Index settings (for full PostgreSQL hybrid search)
+  pgKeywordTableName: Option[String] = None,
   // Answer generation
   llmClient: Option[LLMClient] = None,
   systemPrompt: Option[String] = None,
@@ -199,7 +201,51 @@ final case class RAGConfig(
 
   /** Use in-memory storage (default) */
   def inMemory: RAGConfig =
-    copy(vectorStorePath = None, keywordIndexPath = None, pgVectorConnectionString = None)
+    copy(vectorStorePath = None, keywordIndexPath = None, pgVectorConnectionString = None, pgKeywordTableName = None)
+
+  /**
+   * Use PostgreSQL for both vector AND keyword search (full hybrid).
+   *
+   * This enables fully PostgreSQL-based hybrid RAG using:
+   * - pgvector extension for vector similarity search
+   * - PostgreSQL native full-text search (tsvector/tsquery) for keyword search
+   *
+   * Requires PostgreSQL 16+ with pgvector extension.
+   * Recommended: PostgreSQL 18+ for best performance.
+   *
+   * @param connectionString JDBC connection string (e.g., "jdbc:postgresql://host:port/database")
+   * @param user Database user
+   * @param password Database password
+   * @param vectorTableName Table name for vectors (default: "vectors")
+   * @param keywordTableName Base table name for keywords (creates {tableName}_keyword table, default: "documents")
+   */
+  def withPgHybrid(
+    connectionString: String,
+    user: String,
+    password: String,
+    vectorTableName: String = "vectors",
+    keywordTableName: String = "documents"
+  ): RAGConfig =
+    copy(
+      vectorStorePath = None,
+      keywordIndexPath = None,
+      pgVectorConnectionString = Some(connectionString),
+      pgVectorUser = Some(user),
+      pgVectorPassword = Some(password),
+      pgVectorTableName = Some(vectorTableName),
+      pgKeywordTableName = Some(keywordTableName)
+    )
+
+  /**
+   * Use PostgreSQL for both vector AND keyword search with default local settings.
+   *
+   * Connects to localhost:5432/postgres with user postgres.
+   */
+  def withPgHybridLocal(
+    vectorTableName: String = "vectors",
+    keywordTableName: String = "documents"
+  ): RAGConfig =
+    withPgHybrid("jdbc:postgresql://localhost:5432/postgres", "postgres", "", vectorTableName, keywordTableName)
 
   // ========== Answer Generation Configuration ==========
 

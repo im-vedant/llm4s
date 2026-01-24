@@ -11,10 +11,19 @@ Comprehensive guides for LLM4S features.
 
 ## Available Guides
 
+### Agent Framework
+
+- **[Agents Overview](agents/)** - Build LLM-powered agents with tools, guardrails, and multi-turn conversations
+  - **[Guardrails](agents/guardrails)** - Input/output validation for safety and quality
+  - **[Memory System](agents/memory)** - Persistent context and knowledge across conversations
+  - **[Handoffs](agents/handoffs)** - Agent-to-agent delegation for specialist routing
+  - **[Streaming Events](agents/streaming)** - Real-time execution feedback for responsive UIs
+
 ### RAG & Semantic Search
 
 - **[Vector Store](vector-store)** - Complete RAG toolkit for semantic search and retrieval
   - **Vector Backends**: SQLite (in-memory/file), PostgreSQL/pgvector, Qdrant
+  - **Keyword Backends**: SQLite FTS5, PostgreSQL native full-text search
   - **Hybrid Search**: BM25 keyword + vector fusion with RRF strategy
   - **Reranking**: Cohere cross-encoder for result refinement
   - **Document Chunking**: Sentence-aware + simple chunking strategies

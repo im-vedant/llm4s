@@ -5,6 +5,8 @@ import org.llm4s.agent.memory._
 import org.llm4s.config.Llm4sConfig
 import org.llm4s.llmconnect.LLMConnect
 import org.llm4s.toolapi.ToolRegistry
+import org.slf4j.LoggerFactory
+import scala.util.chaining._
 
 /**
  * Example demonstrating memory integration with the Agent API.
@@ -17,63 +19,73 @@ import org.llm4s.toolapi.ToolRegistry
  *
  * Requires: LLM_MODEL and appropriate API key in environment
  */
-object MemoryWithAgentExample extends App {
-  println("=== Memory with Agent Integration Example ===\n")
+object MemoryWithAgentExample {
+  private val logger = LoggerFactory.getLogger(getClass)
 
-  val result = for {
-    providerCfg <- Llm4sConfig.provider()
-    client      <- LLMConnect.getClient(providerCfg)
-    agent = new Agent(client)
+  def main(args: Array[String]): Unit = {
+    logger.info("=== Memory with Agent Integration Example ===")
 
-    // === Part 1: Initialize Memory with Background Knowledge ===
-    _ = println("1. Setting up memory with background knowledge")
-    _ = println("-" * 40)
+    val result = for {
+      providerCfg <- Llm4sConfig.provider()
+      client      <- LLMConnect.getClient(providerCfg)
+      agent = new Agent(client)
 
-    initialManager = SimpleMemoryManager.empty
+      // === Part 1: Initialize Memory with Background Knowledge ===
+      _ = logger.info("1. Setting up memory with background knowledge")
+      _ = logger.info("-" * 40)
 
-    // Store some user facts
-    m1 <- initialManager.recordUserFact(
-      "The user is a Scala developer with 3 years experience",
-      Some("current-user"),
-      Some(0.9)
-    )
-    m2 <- m1.recordUserFact(
-      "The user prefers functional programming style",
-      Some("current-user"),
-      Some(0.8)
-    )
-    m3 <- m2.recordUserFact(
-      "The user works on a fintech application",
-      Some("current-user"),
-      Some(0.7)
-    )
+      initialManager = SimpleMemoryManager.empty
 
-    // Store some knowledge about the project
-    m4 <- m3.recordKnowledge(
-      "The project uses Cats Effect for async programming",
-      "project-docs",
-      Map("component" -> "core")
-    )
-    m5 <- m4.recordKnowledge(
-      "The API uses http4s server with JSON serialization via Circe",
-      "project-docs",
-      Map("component" -> "api")
-    )
+      // Store some user facts
+      m1 <- initialManager.recordUserFact(
+        "The user is a Scala developer with 3 years experience",
+        Some("current-user"),
+        Some(0.9)
+      )
+      m2 <- m1.recordUserFact(
+        "The user prefers functional programming style",
+        Some("current-user"),
+        Some(0.8)
+      )
+      m3 <- m2.recordUserFact(
+        "The user works on a fintech application",
+        Some("current-user"),
+        Some(0.7)
+      )
 
-    _ = println(s"Initialized memory with ${m5.stats.map(_.totalMemories).getOrElse(0)} items")
+      // Store some knowledge about the project
+      m4 <- m3.recordKnowledge(
+        "The project uses Cats Effect for async programming",
+        "project-docs",
+        Map("component" -> "core")
+      )
+      m5 <- m4
+        .recordKnowledge(
+          "The API uses http4s server with JSON serialization via Circe",
+          "project-docs",
+          Map("component" -> "api")
+        )
+        .tap {
+          case Right(m) => logger.info("Initialized memory with {} items", m.stats.map(_.totalMemories).getOrElse(0))
+          case Left(e)  => logger.error("Failed to init memory: {}", e.message)
+        }
 
-    // === Part 2: Build Context-Aware Prompt ===
-    _ = println("\n2. Building context-aware prompt")
-    _ = println("-" * 40)
+      // === Part 2: Build Context-Aware Prompt ===
+      _ = logger.info("2. Building context-aware prompt")
+      _ = logger.info("-" * 40)
 
-    userContext <- m5.getUserContext(Some("current-user"))
-    _ = println("User context:\n" + userContext)
+      userContext <- m5.getUserContext(Some("current-user")).tap {
+        case Right(ctx) => logger.info("User context:\n{}", ctx)
+        case Left(e)    => logger.error("Failed to get user context: {}", e.message)
+      }
 
-    relevantContext <- m5.getRelevantContext("help me with error handling", maxTokens = 500)
-    _ = println("\nRelevant knowledge:\n" + relevantContext)
+      relevantContext <- m5.getRelevantContext("help me with error handling", 500).tap {
+        case Right(ctx) => logger.info("Relevant knowledge:\n{}", ctx)
+        case Left(e)    => logger.error("Failed to get relevant context: {}", e.message)
+      }
 
-    // Build the system prompt with memory context
-    systemPrompt = s"""You are a helpful programming assistant. Here's what you know about the user:
+      // Build the system prompt with memory context
+      systemPrompt = s"""You are a helpful programming assistant. Here's what you know about the user:
 
 $userContext
 
@@ -82,101 +94,114 @@ $relevantContext
 
 Provide responses tailored to the user's experience level and preferences."""
 
-    // === Part 3: Run Agent with Memory Context ===
-    _ = println("\n3. Running agent with memory context")
-    _ = println("-" * 40)
+      // === Part 3: Run Agent with Memory Context ===
+      _ = logger.info("3. Running agent with memory context")
+      _ = logger.info("-" * 40)
 
-    state1 <- agent.run(
-      query = "How should I handle errors in my API endpoints?",
-      tools = ToolRegistry.empty,
-      systemPromptAddition = Some(systemPrompt)
-    )
+      state1 <- agent.run(
+        query = "How should I handle errors in my API endpoints?",
+        tools = ToolRegistry.empty,
+        systemPromptAddition = Some(systemPrompt)
+      )
 
-    response1 = state1.conversation.messages.last.content
-    _         = println("Agent response (context-aware):")
-    _         = println(response1.take(500) + (if (response1.length > 500) "..." else ""))
+      _ = {
+        val r = state1.conversation.messages.last.content
+        logger.info("Agent response (context-aware):")
+        logger.info("{}", r.take(500) + (if (r.length > 500) "..." else ""))
+      }
 
-    // === Part 4: Record the Conversation ===
-    _ = println("\n4. Recording the conversation in memory")
-    _ = println("-" * 40)
+      // === Part 4: Record the Conversation ===
+      _ = logger.info("4. Recording the conversation in memory")
+      _ = logger.info("-" * 40)
 
-    m6 <- m5.recordConversation(state1.conversation.messages.toSeq, "session-1")
+      m6 <- m5.recordConversation(state1.conversation.messages.toSeq, "session-1")
 
-    stats <- m6.stats
-    _ = println(s"Memory now contains:")
-    _ = println(s"  Total memories: ${stats.totalMemories}")
-    _ = println(s"  Conversation messages: ${stats.byType.getOrElse(MemoryType.Conversation, 0L)}")
-    _ = println(s"  Distinct conversations: ${stats.conversationCount}")
+      _ <- m6.stats.tap {
+        case Right(s) =>
+          logger.info("Memory now contains:")
+          logger.info("  Total memories: {}", s.totalMemories)
+          logger.info("  Conversation messages: {}", s.byType.getOrElse(MemoryType.Conversation, 0L))
+          logger.info("  Distinct conversations: {}", s.conversationCount)
+        case Left(e) =>
+          logger.warn("Stats not available: {}", e.message)
+      }
 
-    // === Part 5: Continue with Memory ===
-    _ = println("\n5. Continuing conversation with full history")
-    _ = println("-" * 40)
+      // === Part 5: Continue with Memory ===
+      _ = logger.info("5. Continuing conversation with full history")
+      _ = logger.info("-" * 40)
 
-    // Get previous conversation context
-    _ <- m6.getConversationContext("session-1", maxMessages = 10)
-    _ = println("Previous conversation retrieved from memory")
+      // Get previous conversation context
+      _ <- m6.getConversationContext("session-1", maxMessages = 10).tap {
+        case Right(_) => logger.info("Previous conversation retrieved from memory")
+        case Left(e)  => logger.error("Failed to get conversation: {}", e.message)
+      }
 
-    // Continue the conversation
-    state2 <- agent.continueConversation(
-      state1,
-      "What about validation errors specifically?"
-    )
+      // Continue the conversation
+      state2 <- agent.continueConversation(
+        state1,
+        "What about validation errors specifically?"
+      )
 
-    response2 = state2.conversation.messages.last.content
-    _         = println("\nFollow-up response:")
-    _         = println(response2.take(500) + (if (response2.length > 500) "..." else ""))
+      _ = {
+        val r = state2.conversation.messages.last.content
+        logger.info("Follow-up response:")
+        logger.info("{}", r.take(500) + (if (r.length > 500) "..." else ""))
+      }
 
-    // Record follow-up
-    m7 <- m6.recordMessage(
-      state2.conversation.messages.last,
-      "session-1",
-      Some(0.8)
-    )
+      // Record follow-up
+      m7 <- m6.recordMessage(
+        state2.conversation.messages.last,
+        "session-1",
+        Some(0.8)
+      )
 
-    // === Part 6: Extract Key Facts ===
-    _ = println("\n6. Summary of what the agent learned")
-    _ = println("-" * 40)
+      // === Part 6: Extract Key Facts ===
+      _ = logger.info("6. Summary of what the agent learned")
+      _ = logger.info("-" * 40)
 
-    // In a real system, you might use the LLM to extract key facts
-    // For now, we record manually as an example
-    m8 <- m7.recordEntityFact(
-      EntityId.fromName("error-handling-pattern"),
-      "Error Handling Pattern",
-      "Use Either[AppError, A] for typed error handling in API endpoints",
-      "pattern",
-      Some(0.9)
-    )
-    m9 <- m8.recordEntityFact(
-      EntityId.fromName("validation-pattern"),
-      "Validation Pattern",
-      "Use ValidatedNel for accumulating validation errors",
-      "pattern",
-      Some(0.9)
-    )
+      // In a real system, you might use the LLM to extract key facts
+      // For now, we record manually as an example
+      m8 <- m7.recordEntityFact(
+        EntityId.fromName("error-handling-pattern"),
+        "Error Handling Pattern",
+        "Use Either[AppError, A] for typed error handling in API endpoints",
+        "pattern",
+        Some(0.9)
+      )
+      m9 <- m8.recordEntityFact(
+        EntityId.fromName("validation-pattern"),
+        "Validation Pattern",
+        "Use ValidatedNel for accumulating validation errors",
+        "pattern",
+        Some(0.9)
+      )
 
-    // Show final state
-    finalStats <- m9.stats
-    _ = println(s"\nFinal memory state:")
-    _ = println(s"  Total memories: ${finalStats.totalMemories}")
-    _ = finalStats.byType.foreach { case (t, c) =>
-      println(s"  ${t.name}: $c")
+      // Show final state
+      _ <- m9.stats.tap {
+        case Right(s) =>
+          logger.info("Final memory state:")
+          logger.info("  Total memories: {}", s.totalMemories)
+          s.byType.foreach { case (t, c) => logger.info("  {}: {}", t.name, c) }
+        case Left(e) =>
+          logger.warn("Final stats not available: {}", e.message)
+      }
+
+    } yield ()
+
+    result match {
+      case Right(_) =>
+        logger.info("=" * 50)
+        logger.info("Memory with agent example completed successfully!")
+        logger.info("Key takeaways:")
+        logger.info("  - Memory provides persistent context across interactions")
+        logger.info("  - User facts personalize responses")
+        logger.info("  - Knowledge retrieval enables domain-specific answers")
+        logger.info("  - Conversation history maintains coherent multi-turn dialogue")
+
+      case Left(error) =>
+        logger.error("Example failed with error:")
+        logger.error("  {}", error.formatted)
+        logger.error("Make sure LLM_MODEL and API key are configured.")
     }
-
-  } yield ()
-
-  result match {
-    case Right(_) =>
-      println("\n" + "=" * 50)
-      println("Memory with agent example completed successfully!")
-      println("\nKey takeaways:")
-      println("  - Memory provides persistent context across interactions")
-      println("  - User facts personalize responses")
-      println("  - Knowledge retrieval enables domain-specific answers")
-      println("  - Conversation history maintains coherent multi-turn dialogue")
-
-    case Left(error) =>
-      println(s"\nExample failed with error:")
-      println(s"  ${error.formatted}")
-      println("\nMake sure LLM_MODEL and API key are configured.")
   }
 }

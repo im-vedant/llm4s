@@ -201,4 +201,44 @@ object KeywordIndex {
    */
   def sqlite(path: String): Result[KeywordIndex] =
     SQLiteKeywordIndex(path)
+
+  /**
+   * Create a PostgreSQL-based keyword index.
+   *
+   * Uses PostgreSQL native full-text search with tsvector/tsquery.
+   * Provides BM25-like scoring via ts_rank_cd (cover density ranking).
+   *
+   * @param config PostgreSQL configuration
+   * @return New keyword index
+   */
+  def postgres(config: PgKeywordIndex.Config): Result[KeywordIndex] =
+    PgKeywordIndex(config)
+
+  /**
+   * Create a PostgreSQL-based keyword index from connection string.
+   *
+   * @param connectionString JDBC connection string (jdbc:postgresql://...)
+   * @param user Database user
+   * @param password Database password
+   * @param tableName Base table name (creates {tableName}_keyword table)
+   * @return New keyword index
+   */
+  def postgres(
+    connectionString: String,
+    user: String = "postgres",
+    password: String = "",
+    tableName: String = "documents"
+  ): Result[KeywordIndex] =
+    PgKeywordIndex(connectionString, user, password, tableName)
+
+  /**
+   * Create a PostgreSQL-based keyword index with default local settings.
+   *
+   * Connects to localhost:5432/postgres with user postgres.
+   *
+   * @param tableName Base table name
+   * @return New keyword index
+   */
+  def postgresLocal(tableName: String = "documents"): Result[KeywordIndex] =
+    PgKeywordIndex.local(tableName)
 }

@@ -118,9 +118,9 @@ class OllamaClient(config: OllamaConfig) extends LLMClient {
     stream: Boolean
   ): ujson.Obj = {
     val msgs = ujson.Arr.from(conversation.messages.collect {
-      case SystemMessage(content)       => ujson.Obj("role" -> "system", "content" -> content)
-      case UserMessage(content)         => ujson.Obj("role" -> "user", "content" -> content)
-      case AssistantMessage(content, _) => ujson.Obj("role" -> "assistant", "content" -> content)
+      case SystemMessage(content) => ujson.Obj("role" -> "system", "content" -> content)
+      case UserMessage(content)   => ujson.Obj("role" -> "user", "content" -> content)
+      case am: AssistantMessage   => ujson.Obj("role" -> "assistant", "content" -> am.content)
       // Tool messages are not supported by Ollama chat API; drop them
     })
 
